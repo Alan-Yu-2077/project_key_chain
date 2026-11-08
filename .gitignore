@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# Never commit a real or test vault
+vault.json
+.keychain/
+
+# macOS
+.DS_Store
