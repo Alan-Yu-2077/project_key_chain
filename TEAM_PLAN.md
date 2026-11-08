@@ -26,20 +26,19 @@
 
 | PR | 分支 | 内容 | 审阅重点 |
 |---|---|---|---|
-| 1 | `feat/vault-core` | 最小骨架；构件 1：主密码 Argon2id 哈希与校验；构件 2：从主密码派生密钥（Argon2id KDF） | 同样是 Argon2，存哈希和派生密钥有什么区别；为什么两者的盐要相互独立；参数为什么这样选 |
-| 2 | `feat/vault-encryption` | 构件 3：AES-GCM 加解密、vault 文件格式与读写（`store.py`）、验收测试 1–3 | AAD 的作用；为什么每次保存都要新 nonce；为什么改动任意一个字节都一定报错 |
-| 3 | `feat/cli` | 构件 4：`generator.py`；`cli.py`、入口 `vault.py`、验收测试 4 | 为什么用 `secrets` 不用 `random`；为什么密码不走命令行参数；错误提示是否清楚 |
-| 4 | `feat/hibp` | 加分项：HIBP 泄露检查 | 到底发出去了什么；为什么只发 SHA-1 前 5 位是安全的 |
-| 5 | `docs/readme` | README（Alan 写） | 每个"为什么"是否正确、是否是我们自己的话 |
+| 1 | `feat/vault-core` | 项目骨架、`errors.py`、`crypto.py`、`store.py`、验收测试 1–3 | Argon2 的两种用法（存哈希 vs 派生密钥）有何区别；AAD 的作用；为什么每次保存都要新 nonce；为什么改动任意一个字节都一定报错 |
+| 2 | `feat/cli` | `generator.py`、`cli.py`、入口 `vault.py`、验收测试 4 | 为什么用 `secrets` 不用 `random`；为什么密码不走命令行参数；错误提示是否清楚 |
+| 3 | `feat/hibp` | 加分项：HIBP 泄露检查 | 到底发出去了什么；为什么只发 SHA-1 前 5 位是安全的 |
+| 4 | `docs/readme` | README（Alan 写） | 每个"为什么"是否正确、是否是我们自己的话 |
 
 ## 3. 时间线
 
 | 日期 | 事项 |
 |---|---|
-| **11/8 周日** | 开 PR 1，B、C review |
-| **11/9 周一** | 合并 PR 1；开 PR 2，B、C review |
-| **11/10 周二** | 合并 PR 2；开 PR 3、PR 4，B、C review；Alan 写 README 初稿 |
-| **11/11 周三** | 合并 PR 3、PR 4；开 PR 5，B、C 审读 README。**答辩演练**：B 讲 `crypto.py` + `store.py`，C 讲 `cli.py` + `generator.py` + `hibp.py`，Alan 提问 |
+| **11/8 周日** | Alan + Claude 完成全部代码和测试，开 PR 1 |
+| **11/9 周一** | B、C review PR 1；Alan 修改后合并，开 PR 2、PR 3 |
+| **11/10 周二** | B、C review PR 2、PR 3，合并；Alan 写 README 初稿，开 PR 4 |
+| **11/11 周三** | B、C 审读 README。**答辩演练**：B 讲 `crypto.py` + `store.py`，C 讲 `cli.py` + `generator.py` + `hibp.py`，Alan 提问 |
 | **11/12 周四** | 冻结，只修 bug；对照第 5 节逐条打勾；打 tag 提交 |
 
 ## 4. 整体逻辑与 vault 文件格式（全员必须看懂）
