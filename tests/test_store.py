@@ -190,12 +190,14 @@ def test_non_canonical_base64_is_rejected(path):
         lambda d: d["kdf"].update(memory_cost=4 * 1024 * 1024),  # 4 GiB per guess
         lambda d: d["kdf"].update(time_cost=1),
         lambda d: d.update(master_hash=d["master_hash"].replace("m=65536", "m=4194304")),
+        lambda d: d.update(master_hash=d["master_hash"][:-1] + "ö"),  # written as ö
         lambda d: d.update(nonce=base64.b64encode(bytes(16)).decode()),
         lambda d: d.update(ciphertext=""),
     ],
     ids=[
         "other-version", "boolean-version", "other-cipher", "extra-field", "missing-nonce",
-        "huge-kdf-memory", "weaker-kdf", "huge-hash-memory", "long-nonce", "empty-ciphertext",
+        "huge-kdf-memory", "weaker-kdf", "huge-hash-memory", "non-ascii-hash", "long-nonce",
+        "empty-ciphertext",
     ],
 )
 def test_anything_but_this_version_s_exact_format_is_rejected(path, change):

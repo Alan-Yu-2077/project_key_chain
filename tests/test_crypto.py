@@ -38,6 +38,7 @@ def test_verify_rejects_a_wrong_password():
         "plain-text-password",
         "$argon2i$v=19$m=65536,t=3,p=4$c2FsdHNhbHRzYWx0$aGFzaGhhc2hoYXNo",  # Argon2i, not Argon2id
         "$argon2id$garbage",
+        "$argon2id$v=19$m=65536,t=3,p=4$c2FsdHNhbHRzYWx0$aGFzaGhhc2hoYXNö",  # not ASCII
     ],
 )
 def test_verify_treats_a_malformed_stored_hash_as_corruption(stored):

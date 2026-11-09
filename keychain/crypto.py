@@ -62,7 +62,8 @@ def verify_master_password(stored_hash: str, password: str) -> bool:
     Returns False for a wrong password. A stored value that is not a valid Argon2id hash means
     the vault file was modified, so that raises VaultCorrupted instead.
     """
-    if not stored_hash.startswith("$argon2id$"):
+    # An Argon2 hash string is pure ASCII; argon2-cffi would crash on anything else.
+    if not stored_hash.isascii() or not stored_hash.startswith("$argon2id$"):
         raise VaultCorrupted("the stored master-password hash is not an Argon2id hash")
     try:
         return _hasher().verify(stored_hash, password)
