@@ -7,3 +7,15 @@ class VaultError(Exception):
 
 class VaultCorrupted(VaultError):
     """Data read from the vault file was modified or is malformed."""
+
+
+class WrongMasterPassword(VaultError):
+    """The master password does not match the hash stored in the vault."""
+
+
+class VaultNotFound(VaultError):
+    """There is no vault file at the given path."""
+
+
+class VaultAlreadyExists(VaultError):
+    """A vault file already exists at the path where a new one was to be created."""
