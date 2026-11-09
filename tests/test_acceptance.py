@@ -1,14 +1,17 @@
-"""The assignment's "done when" checks for building blocks 1-3, run against a real vault file.
+"""The assignment's "done when" checks for the four building blocks.
 
-Building block 4 (the password generator) is checked in PR 3.
+Blocks 1-3 run against a real vault file; block 4 checks the password generator.
 """
 
+import ast
 import base64
 import json
+import string
+from pathlib import Path
 
 import pytest
 
-from keychain import crypto, store
+from keychain import crypto, generator, store
 from keychain.errors import VaultCorrupted, WrongMasterPassword
 
 PASSWORD = "correct horse battery staple"
@@ -84,3 +87,34 @@ def test_3_flipping_any_bit_of_the_vault_file_fails_loudly(tmp_path, monkeypatch
                 assert hash_start <= i < hash_end, f"byte {i}, bit {bit}: reported as a wrong password"
                 continue
             pytest.fail(f"flipping bit {bit} of byte {i} went undetected")
+
+
+def test_4_generated_passwords_are_long_random_and_use_a_wide_character_set():
+    """Done when: passwords are long, random, and use a wide character set, from `secrets` and
+    not `random`; the user picks the length."""
+    assert len(generator.generate_password()) >= 20
+    assert len(generator.generate_password(32)) == 32
+    assert len(generator.ALPHABET) == 94
+
+    passwords = {generator.generate_password() for _ in range(1000)}
+    assert len(passwords) == 1000
+    used = set("".join(passwords))
+    for kind in (string.ascii_lowercase, string.ascii_uppercase, string.digits, string.punctuation):
+        assert set(kind) <= used
+
+    imports = _imported_modules(Path(generator.__file__))
+    assert "secrets" in imports
+    root = Path(__file__).resolve().parent.parent
+    for source in [root / "vault.py", *sorted((root / "keychain").glob("*.py"))]:
+        assert "random" not in _imported_modules(source), f"{source.name} imports random"
+
+
+def _imported_modules(source):
+    """Top-level names of every module `source` imports, found by parsing it, not by grep."""
+    names = set()
+    for node in ast.walk(ast.parse(source.read_text())):
+        if isinstance(node, ast.Import):
+            names.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            names.add(node.module.split(".")[0])
+    return names
