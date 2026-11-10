@@ -27,3 +27,7 @@ class EntryNotFound(VaultError):
 
 class EntryAlreadyExists(VaultError):
     """The vault already has an entry with that name."""
+
+
+class BreachCheckFailed(VaultError):
+    """The Have I Been Pwned breach check could not be completed."""

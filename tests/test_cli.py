@@ -1,10 +1,12 @@
 import json
 import os
+import socket
 import stat
 
 import pytest
 
-from keychain import cli, generator
+from keychain import cli, generator, hibp
+from keychain.errors import BreachCheckFailed
 
 MASTER = "correct horse battery staple"
 
@@ -169,6 +171,90 @@ def test_gen_refuses_a_bad_length(run, length):
     with pytest.raises(SystemExit) as exit_:
         run("gen", "--length", length)
     assert exit_.value.code == 2
+
+
+# --- check (Have I Been Pwned) ---------------------------------------------------------------
+
+
+@pytest.fixture
+def api(monkeypatch):
+    """A fake Have I Been Pwned that reports s3cret-pass as seen 7 times. Returns the list of
+    prefixes it was asked about."""
+    asked = []
+
+    def fetch_range(prefix):
+        asked.append(prefix)
+        return f"{hibp.sha1_hex('s3cret-pass')[5:]}:7\r\n0018A45C4D1DEF81644B54AB7F969B88D65:0"
+
+    monkeypatch.setattr("keychain.hibp.fetch_range", fetch_range)
+    return asked
+
+
+def test_check_reports_breached_and_clean_entries(vault, api):
+    vault("add", "gitlab", "--user", "bob", secrets=[MASTER, "pw-for-gitlab", "pw-for-gitlab"])
+    code, out, _ = vault("check", secrets=[MASTER])
+    assert code == 0
+    lines = out.splitlines()
+    assert lines[0].startswith("Checking 2 password(s) with Have I Been Pwned")
+    assert lines[1:3] == ["github  FOUND in known breaches (7 times)", "gitlab  not found"]
+    assert lines[3].startswith("1 of 2 password(s) appear in known breaches")
+    assert "s3cret-pass" not in out and "pw-for-gitlab" not in out
+    assert sorted(api) == sorted(hibp.sha1_hex(p)[:5] for p in ("s3cret-pass", "pw-for-gitlab"))
+
+
+def test_check_of_named_entries_asks_only_about_those(vault, api):
+    vault("add", "gitlab", "--user", "bob", secrets=[MASTER, "pw-for-gitlab", "pw-for-gitlab"])
+    code, out, _ = vault("check", "gitlab", secrets=[MASTER])
+    assert code == 0
+    assert "gitlab  not found" in out and "github" not in out
+    assert api == [hibp.sha1_hex("pw-for-gitlab")[:5]]
+
+
+def test_check_never_asks_about_the_master_password(vault, api):
+    vault("check", secrets=[MASTER])
+    assert api and hibp.sha1_hex(MASTER)[:5] not in api
+
+
+def test_check_of_an_unknown_name_sends_nothing(vault, api):
+    code, _, err = vault("check", "github", "gitlba", secrets=[MASTER])
+    assert code == 1
+    assert "no entry named 'gitlba'" in err
+    assert api == []
+
+
+def test_check_of_an_empty_vault_sends_nothing(run, api):
+    run("init", secrets=[MASTER, MASTER])
+    assert run("check", secrets=[MASTER])[1] == "The vault is empty.\n"
+    assert api == []
+
+
+def test_check_reports_a_network_failure_clearly(vault, monkeypatch):
+    def offline(prefix):
+        raise BreachCheckFailed("could not reach Have I Been Pwned: no route to host")
+
+    monkeypatch.setattr("keychain.hibp.fetch_range", offline)
+    code, _, err = vault("check", secrets=[MASTER])
+    assert code == 1
+    assert err == "error: could not reach Have I Been Pwned: no route to host\n"
+
+
+def test_no_other_command_touches_the_network(run, monkeypatch):
+    attempts = []
+
+    def no_network(*args, **kwargs):
+        attempts.append(args)
+        raise OSError("network access in a test")
+
+    monkeypatch.setattr(socket.socket, "connect", no_network)
+    monkeypatch.setattr(socket, "getaddrinfo", no_network)
+    run("init", secrets=[MASTER, MASTER])
+    run("add", "github", "--user", "alice", secrets=[MASTER, "s3cret-pass", "s3cret-pass"])
+    run("add", "mail", "--user", "carol", "--generate", secrets=[MASTER])
+    run("get", "github", secrets=[MASTER])
+    run("list", secrets=[MASTER])
+    run("delete", "github", "--yes", secrets=[MASTER])
+    run("gen")
+    assert attempts == []
 
 
 # --- Errors are clear and never a traceback -------------------------------------------------

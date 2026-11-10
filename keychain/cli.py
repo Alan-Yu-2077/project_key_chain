@@ -4,6 +4,8 @@ Secrets (the master password and the stored passwords) are only ever typed at a 
 which does not echo them. They are never taken from command-line arguments, which stay in the
 shell history and are visible to every user of the machine through `ps`, nor from environment
 variables, which child processes inherit.
+
+Only the `check` command uses the network; every other command works offline.
 """
 
 import argparse
@@ -11,7 +13,7 @@ import getpass
 import sys
 from pathlib import Path
 
-from . import generator, store
+from . import generator, hibp, store
 from .errors import EntryAlreadyExists, EntryNotFound, VaultAlreadyExists, VaultError, VaultNotFound
 
 # The vault file can be attacked offline, at Argon2's cost per guess and with no rate limit, so
@@ -121,6 +123,33 @@ def _gen(args: argparse.Namespace) -> None:
     print(generator.generate_password(args.length))
 
 
+def _check(args: argparse.Namespace) -> None:
+    """Look the stored passwords up in Have I Been Pwned (see hibp.py for what is sent).
+
+    The master password is deliberately not checked. Its SHA-1 prefix is 20 bits of a fast,
+    unsalted hash: whoever saw the request and also stole the vault file could discard all but
+    one in a million guesses with a single SHA-1 each, before paying for Argon2 on the rest.
+    """
+    vault = _unlock(args)
+    names = args.names or sorted(vault.entries)
+    if not names:
+        print("The vault is empty.")
+        return
+    # Every name is looked up first, so a typo fails before anything is sent.
+    passwords = [_entry(vault, name).password for name in names]
+    print(f"Checking {len(names)} password(s) with Have I Been Pwned; "
+          "only the first 5 characters of each SHA-1 hash are sent.")
+    counts = hibp.breach_counts(passwords)
+    width = max(len(name) for name in names)
+    for name, count in zip(names, counts):
+        verdict = f"FOUND in known breaches ({count:,} times)" if count else "not found"
+        print(f"{name:<{width}}  {verdict}")
+    breached = sum(1 for count in counts if count)
+    if breached:
+        print(f"{breached} of {len(names)} password(s) appear in known breaches. Change them on "
+              "those sites, then replace them here (delete, then add --generate).")
+
+
 def _unlock(args: argparse.Namespace) -> store.Vault:
     return store.unlock(args.vault, getpass.getpass("Master password: "))
 
@@ -172,6 +201,17 @@ def _parser() -> argparse.ArgumentParser:
     gen.add_argument("--length", type=_length, default=generator.DEFAULT_LENGTH,
                      help=f"number of characters (default {generator.DEFAULT_LENGTH})")
     gen.set_defaults(run=_gen)
+
+    check = commands.add_parser(
+        "check",
+        help="check stored passwords against known breaches (online, via Have I Been Pwned)",
+        description="Check stored passwords against Have I Been Pwned. Only the first 5 "
+                    "characters of each password's SHA-1 hash are sent. 'not found' only means "
+                    "the password is not in a known breach, not that it is strong.",
+    )
+    check.add_argument("names", nargs="*", metavar="NAME",
+                       help="the entries to check (default: all of them)")
+    check.set_defaults(run=_check)
     return parser
 
 
